@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <title>OmniRoute Logs</title>
+    <style>
+        body { font-family: Arial, sans-serif; background:#0f172a; color:#e2e8f0; padding:20px }
+        table { width:100%; border-collapse: collapse; }
+        th, td { padding:8px; border-bottom:1px solid #213040; }
+        pre { white-space:pre-wrap; }
+        a.button { display:inline-block; background:#2563eb; color:#fff; padding:8px 12px; border-radius:6px; text-decoration:none }
+    </style>
+</head>
+<body>
+    <h1>OmniRoute Logs</h1>
+    <p>Log dosyası: {{ logfile }}</p>
+    <p><a class="button" href="{% url 'omni_logs_csv' %}">CSV İndir</a> <a class="button" href="/">Geri</a></p>
+    <table>
+        <thead>
+            <tr><th>Zaman</th><th>OK</th><th>URL / Durum</th><th>Body / Hata</th></tr>
+        </thead>
+        <tbody>
+            {% for e in entries %}
+                <tr>
+                    <td>{{ e.ts|default:"-" }}</td>
+                    <td>{% if e.ok %}✓{% else %}✗{% endif %}</td>
+                    <td>
+                        {% if e.url %}{{ e.url }}{% elif e.status %}Status: {{ e.status }}{% else %}-{% endif %}
+                    </td>
+                    <td><pre>{{ e.body|default:e.error|default:e.raw|default:"" }}</pre></td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4">Kayıt bulunamadı.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
