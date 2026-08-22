@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "EMOG"
+description = "A Django web app for routing user requests into chat responses or executable coding tasks with live run logs."
+version = "1.0.0"
+id = "artifacts/emog-web"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 8002
+
+[services.development]
+run = "cd ../../emog && python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8002"
+
+[services.production.build]
+args = ["python", "-m", "compileall", "../../emog"]
+
+[services.production.run]
+args = ["python", "../../emog/manage.py", "runserver", "0.0.0.0:8002"]
+
+[services.production.run.env]
+DJANGO_SETTINGS_MODULE = "emog_project.settings"
+
+[services.env]
+PORT = "8002"
+BASE_PATH = "/"
