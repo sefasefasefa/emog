@@ -383,6 +383,112 @@ def start_task(request):
     return JsonResponse({"ok": True, "run_id": run_id, "position": position})
 
 
+def _parse_assistant_decision(content):
+    """Parse the model's intent decision without requiring provider JSON mode."""
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+    try:
+        decision = json.loads(text)
+    except json.JSONDecodeError:
+        start, end = text.find("{"), text.rfind("}")
+        if start < 0 or end <= start:
+            return None
+        try:
+            decision = json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(decision, dict):
+        return None
+    intent = str(decision.get("intent", "")).strip().lower()
+    if intent not in {"chat", "execute", "health", "models"}:
+        return None
+    return {
+        "intent": intent,
+        "message": str(decision.get("message") or "").strip(),
+        "task": str(decision.get("task") or "").strip(),
+        "model": str(decision.get("model") or "").strip(),
+    }
+
+
+def assistant_message(request):
+    """Understand a natural-language message and chat or start the right action."""
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "POST required"}, status=405)
+
+    message = (request.POST.get("message") or request.POST.get("task") or "").strip()
+    if not message:
+        return JsonResponse({"ok": False, "error": "Message is required"}, status=400)
+
+    system_prompt = """You are EMOG's intent router. Read the user's Turkish or English message and return ONLY valid JSON.
+Choose exactly one intent:
+- chat: the user wants an explanation, answer, brainstorming, or conversation. Put a concise helpful answer in message.
+- execute: the user asks EMOG to write/run/test/automate code or perform a concrete computer task. Put the complete task instruction in task.
+- health: the user asks to check whether the model service/OmniRoute is reachable.
+- models: the user asks which models are available.
+Never execute code for a question that only asks for an explanation. Never invent a result.
+JSON shape: {"intent":"chat|execute|health|models","message":"...","task":"...","model":""}"""
+    try:
+        response = client.chat.completions.create(
+            model=getattr(settings, "OMNIROUTE_DEFAULT_MODEL", "auto/best-chat"),
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message},
+            ],
+            temperature=0,
+        )
+        content = response.choices[0].message.content or ""
+        decision = _parse_assistant_decision(content)
+    except Exception as exc:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Niyet algılama servisine ulaşılamadı.",
+                "detail": str(exc),
+            },
+            status=502,
+        )
+
+    if decision is None:
+        return JsonResponse(
+            {"ok": False, "error": "Model, isteğin niyetini geçerli biçimde belirleyemedi."},
+            status=502,
+        )
+
+    if decision["intent"] == "chat":
+        return JsonResponse(
+            {
+                "ok": True,
+                "intent": "chat",
+                "reply": decision["message"] or "İsteğinizi anladım. Biraz daha ayrıntı verebilir misiniz?",
+            }
+        )
+
+    if decision["intent"] == "health":
+        return omni_health(request)
+
+    if decision["intent"] == "models":
+        return omni_models(request)
+
+    task = decision["task"] or message
+    model = decision["model"] or None
+    if model == "auto":
+        model = None
+    _start_queue_worker_once()
+    run_id, position = enqueue_task(task, model=model)
+    return JsonResponse(
+        {
+            "ok": True,
+            "intent": "execute",
+            "reply": "İsteğinizi çalıştırılabilir bir görev olarak algıladım ve kuyruğa aldım.",
+            "run_id": run_id,
+            "position": position,
+        }
+    )
+
+
 def task_logs(request, run_id):
     """Return JSON-lines for a run log. Query param `since` (int) returns entries after that 0-based index."""
     since = 0

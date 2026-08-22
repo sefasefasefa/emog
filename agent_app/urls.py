@@ -1,7 +1,7 @@
 from django.urls import path
 
 from .views import index, omni_health, omni_models
-from .views import start_task, task_logs
+from .views import start_task, assistant_message, task_logs
 from .views import sse_task_stream
 from .views import github_page, create_github_repo, push_repo
 from .views import github_page, create_github_repo, push_repo, save_settings
@@ -11,6 +11,7 @@ urlpatterns = [
     path('omni/health/', omni_health, name='omni_health'),
     path('omni/models/', omni_models, name='omni_models'),
     path('run_task/', start_task, name='run_task'),
+    path('assistant/message/', assistant_message, name='assistant_message'),
     path('run_task_no_csrf/', __import__('agent_app.views', fromlist=['run_task_no_csrf']).run_task_no_csrf, name='run_task_no_csrf'),
     path('exec_code_no_csrf/', __import__('agent_app.views', fromlist=['exec_code_no_csrf']).exec_code_no_csrf, name='exec_code_no_csrf'),
     path('task/logs/<str:run_id>/', task_logs, name='task_logs'),
