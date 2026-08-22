@@ -15,11 +15,6 @@
             <textarea id="chat-input" rows="2" placeholder="Ne yapmak istediğinizi yazın... Örn: “1-100 arasındaki asal sayıları bul ve çalıştır” veya “Django nedir?”"></textarea>
             <button class="primary" id="chat-send">Gönder</button>
           </div>
-          <div class="status-panel" aria-live="polite">
-            <div class="status-panel__label">Durum</div>
-            <div id="run-status" class="status-panel__value">Durum: boş</div>
-            <div id="omni-result" class="small">Henüz kontrol edilmedi.</div>
-          </div>
           <div id="live-logs-wrapper" style="display:none;margin-top:12px">
             <div class="chat-window" id="live-logs"></div>
           </div>
@@ -67,6 +62,19 @@
     const bubble = document.createElement('div'); bubble.className = 'bubble ' + (who==='me' ? 'me' : 'ai');
     bubble.textContent = text;
     row.appendChild(bubble); win.appendChild(row); win.scrollTop = win.scrollHeight;
+    return row;
+  }
+
+  function appendRunStatus(row){
+    const panel = document.createElement('div');
+    panel.className = 'status-panel';
+    panel.setAttribute('aria-live', 'polite');
+    panel.innerHTML = '<div class="status-panel__label">Durum</div><div class="status-panel__value">Durum: boş</div><div class="small">Henüz kontrol edilmedi.</div>';
+    row.appendChild(panel);
+    const statusEl = panel.querySelector('.status-panel__value');
+    const resultEl = panel.querySelector('.small');
+    document.getElementById('chat-window').scrollTop = document.getElementById('chat-window').scrollHeight;
+    return { statusEl, resultEl };
   }
 
   // safe JSON parser: if server returns HTML or plain text, throw with snippet
@@ -99,7 +107,7 @@
   function startRunStream(run_id, opts){
     opts = opts || {};
     const showLogs = opts.showLogs !== false; // default true
-    const statusEl = document.getElementById('run-status');
+    const statusEl = opts.statusEl || document.getElementById('run-status');
     if(statusEl) statusEl.textContent = 'Çalıştırılıyor — ' + run_id + ' ⏳';
     if(showLogs){ document.getElementById('live-logs-wrapper').style.display='block'; const dest = document.getElementById('live-logs'); if(dest) dest.innerHTML=''; }
     try{
@@ -138,8 +146,14 @@
       let j;
       try{ j = await safeJson(resp); }catch(e){ renderBubble('Sunucu hata: '+e.message,'ai'); return; }
       if(j && j.ok){
-        if(j.reply) renderBubble(j.reply, 'ai');
-        if(j.intent === 'execute' && j.run_id) { startRunStream(j.run_id, {showLogs:true}); refreshTasks(); }
+         let assistantRow = null;
+         if(j.reply) assistantRow = renderBubble(j.reply, 'ai');
+         if(j.intent === 'execute' && j.run_id) {
+           if(!assistantRow) assistantRow = renderBubble('Çalıştırma başlatıldı.', 'ai');
+           const status = appendRunStatus(assistantRow);
+           startRunStream(j.run_id, {showLogs:true, statusEl: status.statusEl});
+           refreshTasks();
+         }
         if(j.intent === 'health' || j.intent === 'models') renderBubble(JSON.stringify(j.data || j, null, 2), 'ai');
       } else {
         renderBubble((j && (j.error || j.detail)) || 'İstek işlenemedi.', 'ai');
