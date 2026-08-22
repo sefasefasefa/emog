@@ -1,0 +1,70 @@
+{% extends 'agent_app/base.html' %}
+
+{% block content %}
+  <div class="runs-header">
+    <div>
+      <h1>Çalıştırmalar</h1>
+      <p>Geçmiş görev çalıştırmalarını inceleyin ve ayrıntılı logları açın.</p>
+    </div>
+    <div class="runs-actions">
+      <a href="{% url 'home' %}">Ana sayfaya dön</a>
+      <a href="{% url 'runs_page' %}">Yenile</a>
+    </div>
+  </div>
+
+  <div class="panel runs-card">
+    <div class="section-heading">
+      <h4>Son çalıştırmalar</h4>
+      <span id="runs-count" class="count-label">Yükleniyor...</span>
+    </div>
+    <div id="runs-list" class="runs-list">
+      <div class="empty-state">Çalıştırmalar yükleniyor...</div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function escapeHtml(value){
+    return String(value ?? '').replace(/[&<>"']/g, function(ch){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch];
+    });
+  }
+
+  async function loadRuns(){
+    const list = document.getElementById('runs-list');
+    const count = document.getElementById('runs-count');
+    try{
+      const response = await fetch('{% url "runs_list" %}');
+      const data = await response.json();
+      if(!data.ok) throw new Error('runs unavailable');
+      const runs = data.runs || [];
+      count.textContent = runs.length + ' çalıştırma';
+      if(!runs.length){
+        list.innerHTML = '<div class="empty-state">Henüz çalıştırma yok.</div>';
+        return;
+      }
+      list.innerHTML = runs.map(function(run){
+        const name = String(run.file || '');
+        const runId = name.replace(/\.log$/, '');
+        const preview = String(run.preview || 'Önizleme bulunmuyor.').slice(0, 500);
+        const date = run.ts ? new Date(run.ts * 1000).toLocaleString('tr-TR', {dateStyle:'medium', timeStyle:'short'}) : '';
+        return '<div class="run-item" role="link" tabindex="0" data-run-id="'+escapeHtml(runId)+'">'
+          + '<div class="run-item__name">'+escapeHtml(name)+'</div>'
+          + '<div class="run-item__preview">'+escapeHtml(preview)+'</div>'
+          + '<div class="run-item__meta">'+escapeHtml(date)+' · Ayrıntılı logu aç</div>'
+          + '</div>';
+      }).join('');
+      list.querySelectorAll('.run-item').forEach(function(item){
+        const open = function(){ window.location.href = '{% url "task_logs" "__RUNID__" %}'.replace('__RUNID__', encodeURIComponent(item.dataset.runId)); };
+        item.addEventListener('click', open);
+        item.addEventListener('keydown', function(event){ if(event.key === 'Enter' || event.key === ' '){ event.preventDefault(); open(); }});
+      });
+    }catch(error){
+      count.textContent = '—';
+      list.innerHTML = '<div class="empty-state">Çalıştırmalar yüklenemedi.</div>';
+    }
+  }
+  loadRuns();
+</script>
+{% endblock %}

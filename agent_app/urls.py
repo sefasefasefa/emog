@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import index, omni_health, omni_models
+from .views import index, runs_page, omni_health, omni_models
 from .views import start_task, assistant_message, task_logs
 from .views import sse_task_stream
 from .views import github_page, create_github_repo, push_repo
@@ -8,6 +8,7 @@ from .views import github_page, create_github_repo, push_repo, save_settings
 
 urlpatterns = [
     path('', index, name='home'),
+    path('runs/', runs_page, name='runs_page'),
     path('omni/health/', omni_health, name='omni_health'),
     path('omni/models/', omni_models, name='omni_models'),
     path('run_task/', start_task, name='run_task'),

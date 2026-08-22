@@ -39,13 +39,6 @@
         </div>
       </div>
     </div>
-
-    <aside class="aside">
-      <div class="panel">
-        <h4 style="margin-top:0">Son çalıştırmalar</h4>
-        <div id="runs-list" style="max-height:340px;overflow:auto;font-size:13px"></div>
-      </div>
-    </aside>
   </div>
 {% endblock %}
 
@@ -190,13 +183,6 @@
       const dest = document.getElementById('settings-out'); if(dest) dest.textContent = 'Kaydediliyor...';
       try{ const hdrs = (window.getAdminToken && window.getAdminToken()) ? {'X-ADMIN-TOKEN': window.getAdminToken()} : {}; const resp = await fetch('{% url "save_settings" %}', {method:'POST', body: body, headers: hdrs}); let j; try{ j = await safeJson(resp); }catch(e){ if(dest) dest.textContent = 'Sunucu hata: '+e.message; return; } if(dest) dest.textContent = JSON.stringify(j); }catch(e){ if(dest) dest.textContent = 'Hata: '+e; }
     });
-  })();
-
-  // fetch recent runs and populate history
-  (async function fetchRuns(){
-    try{
-      const resp = await fetch('{% url "runs_list" %}'); const j = await resp.json(); if(j.ok){ const list = document.getElementById('runs-list'); list.innerHTML=''; (j.runs||[]).slice(0,50).forEach(r=>{ const el = document.createElement('div'); el.style.padding='6px'; el.style.borderBottom='1px solid #112'; const name = r.file; const preview = (r.preview||''); el.innerHTML = '<div style="font-weight:600">'+name+'</div><div style="color:#9aa4b2;font-size:12px">'+String(preview).slice(0,120)+'</div>'; el.addEventListener('click', ()=>{ window.open('/task/logs/'+name.replace('.log','')+'/','_blank'); }); list.appendChild(el); }); }
-    }catch(e){ }
   })();
 
   // poll queue and update UI

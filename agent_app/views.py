@@ -429,6 +429,11 @@ def index(request):
     )
 
 
+def runs_page(request):
+    """Render the full recent-runs history screen."""
+    return render(request, "agent_app/runs.html")
+
+
 def start_task(request):
     """Start a background task run and return a run_id for polling logs.
 

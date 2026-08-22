@@ -17,7 +17,7 @@
      nav a{color:var(--muted);margin-left:12px;text-decoration:none;font-size:14px}
      nav a:hover{color:#e6f0f6}
     .panel{background:var(--card);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 6px 20px rgba(3,8,15,0.6)}
-    .grid{display:grid;grid-template-columns:1.8fr 1fr;gap:18px}
+     .grid{display:grid;grid-template-columns:1fr;gap:18px}
     .tabs{display:flex;gap:10px;margin-bottom:14px}
     .tab{padding:8px 14px;border-radius:10px;background:transparent;border:1px solid transparent;color:var(--muted);cursor:pointer;font-weight:600}
     .tab.active{background:linear-gradient(90deg, rgba(0,194,168,0.08), rgba(109,211,255,0.03));color:var(--accent);border:1px solid rgba(0,194,168,0.12)}
@@ -65,8 +65,19 @@
      .tasks-table__title{max-width:530px;word-break:break-word}
      .count-label{color:var(--muted);font-size:13px}
      @media (max-width:700px){.tasks-table{display:block;overflow-x:auto;white-space:nowrap}.tasks-table__title{white-space:normal;min-width:220px}}
-    aside .panel{position:sticky;top:20px}
-    @media (max-width:900px){.grid{grid-template-columns:1fr}.aside{order:2}}
+     .runs-header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+     .runs-header h1{margin:0 0 6px;font-size:26px}
+     .runs-header p{margin:0;color:var(--muted);font-size:13px}
+     .runs-actions{display:flex;gap:8px;flex-wrap:wrap}
+     .runs-actions a{color:var(--muted);text-decoration:none;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:8px;font-size:12px}
+     .runs-actions a:hover{color:#e6f0f6;border-color:rgba(109,211,255,.3)}
+     .runs-card{padding:18px}
+     .runs-list{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+     .run-item{padding:13px 14px;border:1px solid rgba(255,255,255,.06);border-radius:9px;background:rgba(255,255,255,.018);cursor:pointer;transition:border-color .18s ease,background .18s ease}
+     .run-item:hover{border-color:rgba(109,211,255,.3);background:rgba(109,211,255,.04)}
+     .run-item__name{font-weight:700;color:#e6f0f6;word-break:break-word}
+     .run-item__preview{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+     .run-item__meta{margin-top:8px;color:var(--accent-2);font-size:11px}
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -77,6 +88,7 @@
       <nav>
           <a href="/">Ana Sayfa</a>
           <a href="{% url 'tasks_page' %}">Görevler</a>
+          <a href="{% url 'runs_page' %}">Çalıştırmalar</a>
           <a href="/github/">Entegrasyonlar</a>
           <a href="{% url 'omni_logs' %}">Omni Logs</a>
           <span style="margin-left:14px">
