@@ -592,13 +592,15 @@ def task_logs(request, run_id):
 
 
 def queue_list(request):
-    """Return current queue items (run_id and enqueued_at) and approximate position."""
+    """Return the single source of truth for currently waiting tasks."""
     with TASK_QUEUE_LOCK:
         items = [
             {
                 "run_id": i["run_id"],
+                "title": i.get("task"),
                 "task": i.get("task"),
                 "priority": i.get("priority", "medium"),
+                "status": "queued",
                 "enqueued_at": i.get("enqueued_at"),
             }
             for i in TASK_QUEUE
@@ -607,10 +609,21 @@ def queue_list(request):
 
 
 def tasks_list(request):
-    """Return persistent tasks ordered from newest to oldest."""
-    with TASKS_LOCK:
-        tasks = list(reversed(_load_tasks()))
-    return JsonResponse({"ok": True, "tasks": tasks[:300]})
+    """Return the same currently waiting tasks shown by the chat queue."""
+    with TASK_QUEUE_LOCK:
+        tasks = [
+            {
+                "run_id": i["run_id"],
+                "title": i.get("task"),
+                "task": i.get("task"),
+                "model": i.get("model"),
+                "priority": i.get("priority", "medium"),
+                "status": "queued",
+                "enqueued_at": i.get("enqueued_at"),
+            }
+            for i in TASK_QUEUE
+        ]
+    return JsonResponse({"ok": True, "tasks": tasks})
 
 
 def tasks_page(request):
