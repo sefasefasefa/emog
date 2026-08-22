@@ -17,7 +17,6 @@
                <span id="queue-count" class="small">0 görev</span>
              </div>
              <div id="task-queue" class="queue-panel__list">Kuyruk boş</div>
-             <button id="enqueue-1" class="primary queue-panel__button">1'i sıraya ekle</button>
            </div>
           <div class="input-row">
             <textarea id="chat-input" rows="2" placeholder="Ne yapmak istediğinizi yazın... Örn: “1-100 arasındaki asal sayıları bul ve çalıştır” veya “Django nedir?”"></textarea>
@@ -239,19 +238,5 @@
   refreshTasks();
   setInterval(refreshTasks, 2500);
 
-  // quick enqueue button for "1"
-  (function(){
-    const btn = document.getElementById('enqueue-1'); if(!btn) return;
-    btn.addEventListener('click', async ()=>{
-      try{
-        btn.disabled = true; btn.textContent = 'Ekleniyor...';
-        const body = new URLSearchParams(); body.append('task', 'print(1)'); body.append('model', 'auto');
-        const resp = await fetch('{% url "run_task" %}', {method:'POST', body: body, headers: buildHeaders()});
-        let j; try{ j = await safeJson(resp); }catch(e){ alert('Sunucu hata: '+e.message); btn.disabled=false; btn.textContent = "1'i sıraya ekle"; return; }
-        if(j && j.ok){ alert('Eklendi: run_id=' + j.run_id + ' (pozisyon: ' + (j.position||'?') + ')'); pollQueue(); refreshTasks(); } else { alert('Başarısız: '+JSON.stringify(j)); }
-      }catch(e){ alert('Hata: '+String(e)); }
-      btn.disabled=false; btn.textContent = "1'i sıraya ekle";
-    });
-  })();
 </script>
 {% endblock %}

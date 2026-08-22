@@ -552,11 +552,16 @@ JSON shape: {"intent":"chat|execute|health|models","message":"...","task":"...",
         model = None
     _start_queue_worker_once()
     run_id, position = enqueue_task(task, model=model, priority=decision["priority"])
+    queue_message = (
+        "Göreviniz çalıştırılıyor."
+        if position == 1
+        else f"Göreviniz otomatik olarak görev listesine eklendi. Sıradaki konumu: {position}."
+    )
     return JsonResponse(
         {
             "ok": True,
             "intent": "execute",
-            "reply": "İsteğinizi çalıştırılabilir bir görev olarak algıladım ve kuyruğa aldım.",
+            "reply": queue_message,
             "run_id": run_id,
             "position": position,
             "priority": decision["priority"],
