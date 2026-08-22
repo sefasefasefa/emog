@@ -25,12 +25,52 @@ import urllib.parse
 # Simple in-memory task queue (FIFO) and worker
 TASK_QUEUE = []  # list of dicts: {run_id, task, model, enqueued_at}
 TASK_QUEUE_LOCK = threading.Lock()
+TASKS_LOCK = threading.Lock()
 _QUEUE_WORKER_STARTED = False
 
 
-def enqueue_task(task_text, model=None):
+def _tasks_path():
+    return os.path.join(settings.BASE_DIR, "tasks.json")
+
+
+def _load_tasks():
+    try:
+        with open(_tasks_path(), "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+
+
+def _save_tasks(tasks):
+    temp_path = _tasks_path() + ".tmp"
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(tasks, f, ensure_ascii=False, indent=2)
+    os.replace(temp_path, _tasks_path())
+
+
+def _update_task(run_id, **changes):
+    with TASKS_LOCK:
+        tasks = _load_tasks()
+        for task in tasks:
+            if task.get("run_id") == run_id:
+                task.update(changes)
+                _save_tasks(tasks)
+                return
+
+
+def enqueue_task(task_text, model=None, priority="medium"):
     run_id = uuid.uuid4().hex
-    item = {"run_id": run_id, "task": task_text, "model": model, "enqueued_at": datetime.utcnow().isoformat() + "Z"}
+    if priority not in {"low", "medium", "high", "urgent"}:
+        priority = "medium"
+    now = datetime.utcnow().isoformat() + "Z"
+    item = {
+        "run_id": run_id,
+        "task": task_text,
+        "model": model,
+        "priority": priority,
+        "enqueued_at": now,
+    }
     # write an initial empty log to ensure SSE readers can open file
     dirp = os.path.join(settings.BASE_DIR, "task_runs")
     try:
@@ -41,6 +81,20 @@ def enqueue_task(task_text, model=None):
     with TASK_QUEUE_LOCK:
         TASK_QUEUE.append(item)
         position = len(TASK_QUEUE)
+    with TASKS_LOCK:
+        tasks = _load_tasks()
+        tasks.append(
+            {
+                "run_id": run_id,
+                "title": task_text[:120],
+                "task": task_text,
+                "priority": priority,
+                "status": "queued",
+                "enqueued_at": now,
+                "completed_at": None,
+            }
+        )
+        _save_tasks(tasks)
     return run_id, position
 
 
@@ -59,6 +113,7 @@ def _start_queue_worker_once():
             if item is None:
                 time.sleep(0.5)
                 continue
+            _update_task(item["run_id"], status="running", started_at=datetime.utcnow().isoformat() + "Z")
             # run the task (wrap to pass run_id)
             try:
                 wrapper = {"__meta__": {"run_id": item["run_id"], "console": False}, "prompt": item["task"]}
@@ -70,8 +125,20 @@ def _start_queue_worker_once():
                         f.write(json.dumps({"ts": datetime.utcnow().isoformat() + "Z", "type": "queued", "text": "Started processing"}, ensure_ascii=False) + "\n")
                 except Exception:
                     pass
-                run_self_healing_loop(wrapper, model_name=item.get("model"))
-            except Exception:
+                result = run_self_healing_loop(wrapper, model_name=item.get("model"))
+                succeeded = isinstance(result, dict) and result.get("success") is True
+                _update_task(
+                    item["run_id"],
+                    status="completed" if succeeded else "failed",
+                    completed_at=datetime.utcnow().isoformat() + "Z",
+                )
+            except Exception as exc:
+                _update_task(
+                    item["run_id"],
+                    status="failed",
+                    completed_at=datetime.utcnow().isoformat() + "Z",
+                    error=str(exc),
+                )
                 # ensure errors are logged to the run file
                 try:
                     dirp = os.path.join(settings.BASE_DIR, "task_runs")
@@ -410,6 +477,7 @@ def _parse_assistant_decision(content):
         "message": str(decision.get("message") or "").strip(),
         "task": str(decision.get("task") or "").strip(),
         "model": str(decision.get("model") or "").strip(),
+        "priority": str(decision.get("priority") or "medium").strip().lower(),
     }
 
 
@@ -429,7 +497,8 @@ Choose exactly one intent:
 - health: the user asks to check whether the model service/OmniRoute is reachable.
 - models: the user asks which models are available.
 Never execute code for a question that only asks for an explanation. Never invent a result.
-JSON shape: {"intent":"chat|execute|health|models","message":"...","task":"...","model":""}"""
+Priority must be one of low, medium, high, urgent. Use urgent only when the user explicitly says it is urgent or blocking.
+JSON shape: {"intent":"chat|execute|health|models","message":"...","task":"...","model":"","priority":"low|medium|high|urgent"}"""
     try:
         response = client.chat.completions.create(
             model=getattr(settings, "OMNIROUTE_DEFAULT_MODEL", "auto/best-chat"),
@@ -477,7 +546,7 @@ JSON shape: {"intent":"chat|execute|health|models","message":"...","task":"...",
     if model == "auto":
         model = None
     _start_queue_worker_once()
-    run_id, position = enqueue_task(task, model=model)
+    run_id, position = enqueue_task(task, model=model, priority=decision["priority"])
     return JsonResponse(
         {
             "ok": True,
@@ -485,6 +554,7 @@ JSON shape: {"intent":"chat|execute|health|models","message":"...","task":"...",
             "reply": "İsteğinizi çalıştırılabilir bir görev olarak algıladım ve kuyruğa aldım.",
             "run_id": run_id,
             "position": position,
+            "priority": decision["priority"],
         }
     )
 
@@ -524,8 +594,27 @@ def task_logs(request, run_id):
 def queue_list(request):
     """Return current queue items (run_id and enqueued_at) and approximate position."""
     with TASK_QUEUE_LOCK:
-        items = [{"run_id": i["run_id"], "enqueued_at": i.get("enqueued_at")} for i in TASK_QUEUE]
+        items = [
+            {
+                "run_id": i["run_id"],
+                "task": i.get("task"),
+                "priority": i.get("priority", "medium"),
+                "enqueued_at": i.get("enqueued_at"),
+            }
+            for i in TASK_QUEUE
+        ]
     return JsonResponse({"ok": True, "queue": items, "count": len(items)})
+
+
+def tasks_list(request):
+    """Return persistent tasks ordered from newest to oldest."""
+    with TASKS_LOCK:
+        tasks = list(reversed(_load_tasks()))
+    return JsonResponse({"ok": True, "tasks": tasks[:300]})
+
+
+def tasks_page(request):
+    return render(request, "agent_app/tasks.html")
 
 
 def sse_task_stream(request, run_id):

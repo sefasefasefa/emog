@@ -17,6 +17,8 @@ urlpatterns = [
     path('task/logs/<str:run_id>/', task_logs, name='task_logs'),
     path('task/stream/<str:run_id>/', sse_task_stream, name='task_stream'),
     path('queue/list/', __import__('agent_app.views', fromlist=['queue_list']).queue_list, name='queue_list'),
+    path('tasks/list/', __import__('agent_app.views', fromlist=['tasks_list']).tasks_list, name='tasks_list'),
+    path('tasks/', __import__('agent_app.views', fromlist=['tasks_page']).tasks_page, name='tasks_page'),
     path('omni/logs/', __import__('agent_app.views', fromlist=['omni_logs']).omni_logs, name='omni_logs'),
     path('omni/logs/csv/', __import__('agent_app.views', fromlist=['omni_logs_csv']).omni_logs_csv, name='omni_logs_csv'),
     path('github/', github_page, name='github_page'),
