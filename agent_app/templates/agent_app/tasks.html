@@ -15,8 +15,8 @@
 {% block content %}
   <div class="tasks-header">
     <div>
-      <h1>Tüm görevler</h1>
-      <p>Görevleri durumlarına ve önem derecelerine göre inceleyin.</p>
+      <h1>Bekleyen görevler</h1>
+      <p>Chat ekranındaki kuyrukla aynı bekleyen görevleri inceleyin.</p>
     </div>
     <div class="tasks-actions">
       <a href="{% url 'home' %}">Ana sayfaya dön</a>
@@ -25,17 +25,10 @@
   </div>
   <div class="panel tasks-card">
     <div class="section-heading">
-      <h4>Görev listesi</h4>
+      <h4>Bekleyen görev listesi</h4>
       <span id="task-count" class="count-label">Yükleniyor...</span>
     </div>
     <div class="filter-row">
-      <select id="status-filter" aria-label="Duruma göre filtrele">
-        <option value="all">Tüm durumlar</option>
-        <option value="queued">Bekliyor</option>
-        <option value="running">Çalışıyor</option>
-        <option value="completed">Tamamlandı</option>
-        <option value="failed">Başarısız</option>
-      </select>
       <select id="priority-filter" aria-label="Önem derecesine göre filtrele">
         <option value="all">Tüm önem dereceleri</option>
         <option value="urgent">Acil</option>
@@ -63,10 +56,9 @@
     return '<span class="badge badge--'+escapeHtml(key)+'">'+escapeHtml(labels[key] || value || '-')+'</span>';
   }
   function renderTasks(){
-    const status = document.getElementById('status-filter').value;
     const priority = document.getElementById('priority-filter').value;
     const filtered = allTasks.filter(function(task){
-      return (status === 'all' || task.status === status) && (priority === 'all' || task.priority === priority);
+      return priority === 'all' || task.priority === priority;
     });
     document.getElementById('task-count').textContent = filtered.length+' görev';
     const target = document.getElementById('tasks-content');
@@ -91,7 +83,6 @@
       target.textContent = 'Görevler yüklenemedi.';
     }
   }
-  document.getElementById('status-filter').addEventListener('change', renderTasks);
   document.getElementById('priority-filter').addEventListener('change', renderTasks);
   loadTasks();
   setInterval(loadTasks, 2500);
