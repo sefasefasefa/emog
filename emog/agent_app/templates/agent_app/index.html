@@ -40,8 +40,12 @@
         <div id="omni-result" class="small">Henüz kontrol edilmedi.</div>
         <div id="run-status" class="small" style="margin-top:8px;color:#9aa4b2">Durum: boş</div>
         <hr />
-        <h4 style="margin:8px 0">Kuyruk (Bekleyen Görevler)</h4>
-        <div id="task-queue" style="max-height:120px;overflow:auto;font-size:13px;color:#9aa4b2;margin-bottom:8px">Yükleniyor...</div>
+        <div class="queue-heading">
+          <h4 style="margin:8px 0">Sıralı görevler</h4>
+          <span id="queue-count" class="queue-count">0</span>
+        </div>
+        <div id="active-task" class="active-task" style="display:none"></div>
+        <div id="task-queue" class="task-queue">Yükleniyor...</div>
         <div style="margin-top:6px"><button id="enqueue-1" class="primary" style="width:100%">1'i sıraya ekle</button></div>
         <h4 style="margin:8px 0">Geçmiş</h4>
         <div id="runs-list" style="max-height:340px;overflow:auto;font-size:13px"></div>
@@ -132,7 +136,7 @@
       const resp = await fetch('{% url "run_task" %}', {method:'POST', body: body, headers: buildHeaders()});
       let j; try{ j = await safeJson(resp); }catch(e){ renderBubble('Sunucu hata: '+e.message,'ai'); return; }
       if(j && j.ok && j.mode === 'chat'){ renderBubble(j.reply || 'Yanıt alınamadı.', 'ai'); }
-      else if(j && j.ok && j.mode === 'code' && j.run_id){ renderBubble('Kod görevi algılandı. Çalıştırılıyor — ' + j.run_id, 'ai'); startRunStream(j.run_id, {showLogs:true}); }
+      else if(j && j.ok && j.mode === 'code' && j.run_id){ renderBubble('Kod görevi kuyruğa eklendi. Sırası: ' + j.position, 'ai'); startRunStream(j.run_id, {showLogs:true}); pollQueue(); }
       else { renderBubble('Başlatılamadı: ' + JSON.stringify(j),'ai'); }
     }catch(e){ renderBubble('Hata: '+e,'ai'); }
   }
@@ -178,19 +182,59 @@
     }catch(e){ }
   })();
 
-  // poll queue and update UI
+  function queueRequest(url, data){
+    return fetch(url, {method:'POST', body: data || new URLSearchParams(), headers: buildHeaders()}).then(safeJson);
+  }
+
+  function queueItemCard(item){
+    const card = document.createElement('div'); card.className = 'queue-item';
+    const content = document.createElement('div'); content.className = 'queue-item-content';
+    const number = document.createElement('span'); number.className = 'queue-number'; number.textContent = item.position;
+    const text = document.createElement('div'); text.className = 'queue-task-text'; text.textContent = item.task || 'Görev';
+    const meta = document.createElement('div'); meta.className = 'queue-task-meta'; meta.textContent = 'Bekliyor · ' + item.run_id.slice(0,8);
+    content.appendChild(number); content.appendChild(text); content.appendChild(meta);
+    const actions = document.createElement('div'); actions.className = 'queue-actions';
+    function actionButton(label, title, handler){
+      const button = document.createElement('button'); button.className = 'queue-action'; button.textContent = label; button.title = title;
+      button.addEventListener('click', handler); actions.appendChild(button); return button;
+    }
+    actionButton('↑', 'Yukarı taşı', ()=>{ queueRequest('{% url "queue_move" "__RUNID__" "up" %}'.replace('__RUNID__', item.run_id)).then(pollQueue); });
+    actionButton('↓', 'Aşağı taşı', ()=>{ queueRequest('{% url "queue_move" "__RUNID__" "down" %}'.replace('__RUNID__', item.run_id)).then(pollQueue); });
+    actionButton('Düzenle', 'Görevi düzenle', ()=>{
+      const input = document.createElement('input'); input.className = 'queue-edit-input'; input.value = item.task || '';
+      const save = document.createElement('button'); save.className = 'queue-action queue-save'; save.textContent = 'Kaydet';
+      const cancel = document.createElement('button'); cancel.className = 'queue-action'; cancel.textContent = 'Vazgeç';
+      text.replaceChildren(input); actions.replaceChildren(save, cancel); input.focus();
+      save.addEventListener('click', ()=>{
+        const body = new URLSearchParams(); body.append('task', input.value.trim());
+        queueRequest('{% url "queue_edit" "__RUNID__" %}'.replace('__RUNID__', item.run_id), body).then(pollQueue);
+      });
+      cancel.addEventListener('click', pollQueue);
+    });
+    actionButton('Sil', 'Görevi sil', ()=>{
+      if(!window.confirm('Bu bekleyen görev silinsin mi?')) return;
+      queueRequest('{% url "queue_delete" "__RUNID__" %}'.replace('__RUNID__', item.run_id)).then(pollQueue);
+    });
+    card.appendChild(content); card.appendChild(actions); return card;
+  }
+
+  // Poll and render the live active task plus the ordered pending queue.
   async function pollQueue(){
     try{
       const resp = await fetch('{% url "queue_list" %}'); const j = await resp.json();
-      const el = document.getElementById('task-queue'); if(!el) return;
-      if(!j.ok){ el.textContent = 'Kuyruk alınamadı'; return; }
-      const items = j.queue || [];
-      if(items.length === 0){ el.textContent = 'Kuyruk boş'; return; }
-      el.innerHTML = '';
-      items.forEach((it, idx)=>{
-        const div = document.createElement('div'); div.style.padding='6px'; div.style.borderBottom='1px solid #112'; div.textContent = `${idx+1}. ${it.run_id} — ${it.enqueued_at||''}`; el.appendChild(div);
-      });
-    }catch(e){ /* ignore */ }
+      const el = document.getElementById('task-queue'); const activeEl = document.getElementById('active-task'); const countEl = document.getElementById('queue-count');
+      if(!el || !j.ok) return;
+      const items = j.queue || []; countEl.textContent = items.length;
+      if(j.active){
+        activeEl.style.display='block'; activeEl.innerHTML='';
+        const label = document.createElement('div'); label.className='active-label'; label.textContent='Şu anda çalışıyor';
+        const task = document.createElement('div'); task.className='active-task-text'; task.textContent=j.active.task || 'Görev çalışıyor';
+        activeEl.appendChild(label); activeEl.appendChild(task);
+      } else { activeEl.style.display='none'; activeEl.innerHTML=''; }
+      el.innerHTML='';
+      if(items.length === 0){ el.textContent = j.active ? 'Sırada bekleyen görev yok' : 'Kuyruk boş'; return; }
+      items.forEach(item=>el.appendChild(queueItemCard(item)));
+    }catch(e){ /* keep the last visible queue state */ }
   }
   setInterval(pollQueue, 2500);
   pollQueue();

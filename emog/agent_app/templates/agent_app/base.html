@@ -29,7 +29,24 @@
     button.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#042027;border:none;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:700}
     .small{font-size:13px;color:var(--muted)}
     aside .panel{position:sticky;top:20px}
+    .queue-heading{display:flex;align-items:center;justify-content:space-between}
+    .queue-count{min-width:24px;padding:3px 8px;border-radius:999px;background:rgba(109,211,255,0.1);color:var(--accent-2);font-size:12px;text-align:center}
+    .active-task{padding:10px 11px;margin:4px 0 10px;border:1px solid rgba(0,194,168,0.28);border-radius:10px;background:linear-gradient(120deg,rgba(0,194,168,0.13),rgba(109,211,255,0.05))}
+    .active-label{color:var(--accent);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+    .active-task-text{margin-top:5px;font-size:13px;line-height:1.4;color:#eafffb;word-break:break-word}
+    .task-queue{max-height:330px;overflow:auto;margin-bottom:8px}
+    .queue-item{display:flex;gap:8px;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
+    .queue-item-content{display:grid;grid-template-columns:24px 1fr;gap:2px 8px;min-width:0;flex:1}
+    .queue-number{grid-row:span 2;color:var(--accent-2);font-weight:700;font-size:13px;padding-top:2px}
+    .queue-task-text{font-size:13px;line-height:1.35;color:#e6f0f6;word-break:break-word}
+    .queue-task-meta{font-size:11px;color:var(--muted)}
+    .queue-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;max-width:120px}
+    .queue-action{border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:rgba(255,255,255,0.04);color:var(--muted);padding:4px 6px;font-size:11px;cursor:pointer}
+    .queue-action:hover{color:#fff;border-color:rgba(109,211,255,0.45);background:rgba(109,211,255,0.08)}
+    .queue-save{color:var(--accent);border-color:rgba(0,194,168,0.35)}
+    .queue-edit-input{width:100%;background:rgba(0,0,0,0.18);border:1px solid rgba(109,211,255,0.35);border-radius:6px;color:#fff;padding:6px;font:inherit}
     @media (max-width:900px){.grid{grid-template-columns:1fr}.aside{order:2}}
+    @media (max-width:560px){.input-row{flex-wrap:wrap}.input-row select{max-width:none!important;flex:1 1 100%}.input-row input{flex:1 1 calc(100% - 90px)}}
   </style>
   {% block head %}{% endblock %}
 </head>

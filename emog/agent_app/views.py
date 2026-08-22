@@ -25,6 +25,7 @@ import urllib.parse
 # Simple in-memory task queue (FIFO) and worker
 TASK_QUEUE = []  # list of dicts: {run_id, task, model, enqueued_at}
 TASK_QUEUE_LOCK = threading.Lock()
+ACTIVE_TASK = None
 _QUEUE_WORKER_STARTED = False
 
 
@@ -51,11 +52,13 @@ def _start_queue_worker_once():
     _QUEUE_WORKER_STARTED = True
 
     def worker():
+        global ACTIVE_TASK
         while True:
             item = None
             with TASK_QUEUE_LOCK:
                 if TASK_QUEUE:
                     item = TASK_QUEUE.pop(0)
+                    ACTIVE_TASK = dict(item, status="running", started_at=datetime.utcnow().isoformat() + "Z")
             if item is None:
                 time.sleep(0.5)
                 continue
@@ -80,6 +83,9 @@ def _start_queue_worker_once():
                         f.write(json.dumps({"ts": datetime.utcnow().isoformat() + "Z", "type": "exception", "text": "Worker exception"}, ensure_ascii=False) + "\n")
                 except Exception:
                     pass
+            finally:
+                with TASK_QUEUE_LOCK:
+                    ACTIVE_TASK = None
 
     t = threading.Thread(target=worker, daemon=True)
     t.start()
@@ -476,10 +482,57 @@ def task_logs(request, run_id):
 
 
 def queue_list(request):
-    """Return current queue items (run_id and enqueued_at) and approximate position."""
+    """Return the active task and pending tasks in their current order."""
     with TASK_QUEUE_LOCK:
-        items = [{"run_id": i["run_id"], "enqueued_at": i.get("enqueued_at")} for i in TASK_QUEUE]
-    return JsonResponse({"ok": True, "queue": items, "count": len(items)})
+        items = [dict(i, position=index + 1, status="queued") for index, i in enumerate(TASK_QUEUE)]
+        active = dict(ACTIVE_TASK) if ACTIVE_TASK else None
+    return JsonResponse({"ok": True, "active": active, "queue": items, "count": len(items)})
+
+
+def _find_pending_task(run_id):
+    return next((index for index, item in enumerate(TASK_QUEUE) if item["run_id"] == run_id), None)
+
+
+def queue_edit(request, run_id):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "POST required"}, status=405)
+    task = (request.POST.get("task") or "").strip()
+    if not task:
+        return JsonResponse({"ok": False, "error": "Task is required"}, status=400)
+    with TASK_QUEUE_LOCK:
+        index = _find_pending_task(run_id)
+        if index is None:
+            return JsonResponse({"ok": False, "error": "Only pending tasks can be edited."}, status=404)
+        TASK_QUEUE[index]["task"] = task
+        updated = dict(TASK_QUEUE[index], position=index + 1, status="queued")
+    return JsonResponse({"ok": True, "task": updated})
+
+
+def queue_delete(request, run_id):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "POST required"}, status=405)
+    with TASK_QUEUE_LOCK:
+        index = _find_pending_task(run_id)
+        if index is None:
+            return JsonResponse({"ok": False, "error": "Only pending tasks can be deleted."}, status=404)
+        removed = TASK_QUEUE.pop(index)
+    return JsonResponse({"ok": True, "removed": removed["run_id"]})
+
+
+def queue_move(request, run_id, direction):
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "POST required"}, status=405)
+    if direction not in {"up", "down"}:
+        return JsonResponse({"ok": False, "error": "Direction must be up or down."}, status=400)
+    with TASK_QUEUE_LOCK:
+        index = _find_pending_task(run_id)
+        if index is None:
+            return JsonResponse({"ok": False, "error": "Pending task not found."}, status=404)
+        target = index - 1 if direction == "up" else index + 1
+        if target < 0 or target >= len(TASK_QUEUE):
+            return JsonResponse({"ok": True, "moved": False})
+        TASK_QUEUE[index], TASK_QUEUE[target] = TASK_QUEUE[target], TASK_QUEUE[index]
+    return JsonResponse({"ok": True, "moved": True})
 
 
 def sse_task_stream(request, run_id):

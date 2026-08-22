@@ -1,7 +1,7 @@
 from django.urls import path
 
 from .views import index, omni_health, omni_models
-from .views import start_task, task_logs
+from .views import start_task, task_logs, queue_edit, queue_delete, queue_move
 from .views import sse_task_stream
 from .views import github_page, create_github_repo, push_repo, save_settings
 
@@ -15,6 +15,9 @@ urlpatterns = [
     path('task/logs/<str:run_id>/', task_logs, name='task_logs'),
     path('task/stream/<str:run_id>/', sse_task_stream, name='task_stream'),
     path('queue/list/', __import__('agent_app.views', fromlist=['queue_list']).queue_list, name='queue_list'),
+    path('queue/<str:run_id>/edit/', queue_edit, name='queue_edit'),
+    path('queue/<str:run_id>/delete/', queue_delete, name='queue_delete'),
+    path('queue/<str:run_id>/<str:direction>/', queue_move, name='queue_move'),
     path('omni/logs/', __import__('agent_app.views', fromlist=['omni_logs']).omni_logs, name='omni_logs'),
     path('omni/logs/csv/', __import__('agent_app.views', fromlist=['omni_logs_csv']).omni_logs_csv, name='omni_logs_csv'),
     path('github/', github_page, name='github_page'),
