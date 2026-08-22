@@ -134,6 +134,51 @@ def extract_code_block(text):
     return None
 
 
+def classify_request(task_text, model_name=None):
+    """Let the model decide whether the user's message needs a chat reply or code execution."""
+    if not model_name:
+        model_name = getattr(settings, "OMNIROUTE_DEFAULT_MODEL", "auto/best-chat")
+
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Kullanıcı isteğini başlangıçta iki moddan biri olarak sınıflandır: "
+                    "'chat' veya 'code'. "
+                    "'chat': bilgi isteme, açıklama, fikir, plan, sohbet veya kod çalıştırma "
+                    "istemeyen her şey. Bu modda Türkçe, doğrudan ve yararlı bir cevap yaz. "
+                    "'code': kullanıcı açıkça kod yazmanı, bir programı çalıştırmanı, hesaplama "
+                    "yapmanı veya çıktıyı üretmeni istiyorsa. "
+                    "Yalnızca geçerli JSON döndür: "
+                    '{"mode":"chat"|"code","reply":"chat cevabı; code modunda boş bırak"}. '
+                    "Markdown kullanma, JSON dışına çıkma."
+                ),
+            },
+            {"role": "user", "content": task_text},
+        ],
+        temperature=0,
+    )
+    raw = (response.choices[0].message.content or "").strip()
+    cleaned = raw
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+        cleaned = cleaned.rsplit("```", 1)[0].strip()
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Model returned invalid routing JSON: {raw[:500]}") from exc
+
+    mode = parsed.get("mode")
+    if mode not in {"chat", "code"}:
+        raise ValueError("Model returned an unknown request mode.")
+    return {
+        "mode": mode,
+        "reply": str(parsed.get("reply") or "").strip(),
+    }
+
+
 def run_self_healing_loop(initial_prompt, model_name=None, max_iterations=5):
     # model name may be provided in the prompt wrapper (we set default later)
     # allow callers to pass a wrapper dict: {"__meta__": {...}, "prompt": "..."}
@@ -146,7 +191,7 @@ def run_self_healing_loop(initial_prompt, model_name=None, max_iterations=5):
     conversation_history = [
         {
             "role": "system",
-            "content": "You are an autonomous senior developer agent. Write ONLY valid, executable Python code inside a markdown block ```python ... ``` for the given task. Do not include extra conversational filler.",
+            "content": "The request has already been classified as a code execution task. Write ONLY valid, executable Python code inside a markdown block ```python ... ``` for the given task. Do not include conversational filler or explanations.",
         },
         {"role": "user", "content": prompt_text},
     ]
@@ -377,10 +422,25 @@ def start_task(request):
     if model == "auto" or not model:
         model = None
 
+    try:
+        routed = classify_request(task, model_name=model)
+    except Exception as exc:
+        return JsonResponse(
+            {"ok": False, "error": f"İstek türü belirlenemedi: {exc}"},
+            status=502,
+        )
+
+    if routed["mode"] == "chat":
+        return JsonResponse(
+            {"ok": True, "mode": "chat", "reply": routed["reply"]},
+        )
+
     # enqueue the task to be processed sequentially by the worker
     _start_queue_worker_once()
     run_id, position = enqueue_task(task, model=model)
-    return JsonResponse({"ok": True, "run_id": run_id, "position": position})
+    return JsonResponse(
+        {"ok": True, "mode": "code", "run_id": run_id, "position": position}
+    )
 
 
 def task_logs(request, run_id):

@@ -5,28 +5,18 @@
     <div>
       <div class="panel">
         <div class="tabs">
-          <button class="tab active" data-tab="chat">Sohbet</button>
-          <button class="tab" data-tab="run">Çalıştır</button>
+          <button class="tab active" data-tab="assistant">Sohbet + Çalıştır</button>
           <button class="tab" data-tab="integrations">Entegrasyonlar</button>
         </div>
 
-        <div id="tab-chat" class="tab-content">
+        <div id="tab-assistant" class="tab-content">
           <div class="chat-window" id="chat-window" aria-live="polite"></div>
-          <div class="input-row">
-            <input id="chat-input" type="text" placeholder="Görev veya soru yazın... (ör. '1-100 arası asal sayıları yazdır')" />
+          <div class="input-row" style="align-items:stretch">
+            <select id="id_model" name="model" aria-label="Model" style="max-width:220px"></select>
+            <input id="chat-input" type="text" placeholder="Sorunuzu veya çalıştırılacak görevi yazın..." />
             <button class="primary" id="chat-send">Gönder</button>
           </div>
-        </div>
-
-        <div id="tab-run" class="tab-content" style="display:none; margin-top:12px">
-          <form id="task-form">
-            {% csrf_token %}
-            <textarea id="task-input" name="task" rows="6" placeholder="Görev metnini buraya yazın..."></textarea>
-            <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
-              <select id="id_model" name="model" style="flex:1"></select>
-              <button class="primary" type="submit">Çalıştır</button>
-            </div>
-          </form>
+          <div class="small" style="margin-top:8px">EMOG önce isteğin sohbet mi yoksa kod çalıştırma mı olduğunu anlar.</div>
           <div id="live-logs-wrapper" style="display:none;margin-top:12px">
             <div class="chat-window" id="live-logs"></div>
           </div>
@@ -133,20 +123,22 @@
     }catch(e){ if(statusEl) statusEl.textContent = 'Hata başlatılamadı: '+String(e); }
   }
 
-  document.getElementById('chat-send').addEventListener('click', async ()=>{
+  async function submitAssistantRequest(){
     const txt = document.getElementById('chat-input').value.trim(); if(!txt) return;
     renderBubble(txt,'me'); document.getElementById('chat-input').value = '';
-    const body = new URLSearchParams(); body.append('task', txt); body.append('model', 'auto');
+    const selectedModel = document.getElementById('id_model').value || 'auto';
+    const body = new URLSearchParams(); body.append('task', txt); body.append('model', selectedModel);
     try{
       const resp = await fetch('{% url "run_task" %}', {method:'POST', body: body, headers: buildHeaders()});
       let j; try{ j = await safeJson(resp); }catch(e){ renderBubble('Sunucu hata: '+e.message,'ai'); return; }
-      if(j && j.ok && j.run_id){ renderBubble('Çalıştırılıyor — ' + j.run_id, 'ai'); startRunStream(j.run_id, {showLogs:false}); }
+      if(j && j.ok && j.mode === 'chat'){ renderBubble(j.reply || 'Yanıt alınamadı.', 'ai'); }
+      else if(j && j.ok && j.mode === 'code' && j.run_id){ renderBubble('Kod görevi algılandı. Çalıştırılıyor — ' + j.run_id, 'ai'); startRunStream(j.run_id, {showLogs:true}); }
       else { renderBubble('Başlatılamadı: ' + JSON.stringify(j),'ai'); }
     }catch(e){ renderBubble('Hata: '+e,'ai'); }
-  });
-
-  // run form submit: show live logs panel
-  document.getElementById('task-form').addEventListener('submit', async function(ev){ ev.preventDefault(); const data = new FormData(this); const resp = await fetch('{% url "run_task" %}', {method:'POST', body: data, headers: buildHeaders()}); let j; try{ j = await safeJson(resp); }catch(e){ const dest = document.getElementById('live-logs'); const div=document.createElement('div'); div.className='bubble ai'; div.textContent='Sunucu hata: '+e.message; if(dest) dest.appendChild(div); return; } if(j && j.ok && j.run_id){ startRunStream(j.run_id, {showLogs:true}); }
+  }
+  document.getElementById('chat-send').addEventListener('click', submitAssistantRequest);
+  document.getElementById('chat-input').addEventListener('keydown', function(ev){
+    if(ev.key === 'Enter' && !ev.shiftKey){ ev.preventDefault(); submitAssistantRequest(); }
   });
 
   // Settings: fetch and save (guarded - settings UI may be absent)
@@ -165,7 +157,20 @@
   })();
 
   // populate models initially
-  (async function populate(){ try{ const resp = await fetch('{% url "omni_models" %}'); const j = await resp.json(); if(j.ok){ const sel = document.getElementById('id_model'); sel.innerHTML=''; if(Array.isArray(j.data)){ j.data.slice(0,50).forEach(it=>{ const v = it.id||it.name; if(v){ const o = document.createElement('option'); o.value=v; o.text=v; sel.appendChild(o); } }); } } }catch(e){} })();
+  (async function populate(){
+    const sel = document.getElementById('id_model');
+    if(!sel) return;
+    const auto = document.createElement('option'); auto.value='auto'; auto.text='Auto (önerilen)'; sel.appendChild(auto);
+    try{
+      const resp = await fetch('{% url "omni_models" %}'); const j = await resp.json();
+      if(j.ok && Array.isArray(j.data)){
+        j.data.slice(0,50).forEach(it=>{
+          const v = it.id||it.name;
+          if(v){ const o = document.createElement('option'); o.value=v; o.text=v; sel.appendChild(o); }
+        });
+      }
+    }catch(e){}
+  })();
   // fetch recent runs and populate history
   (async function fetchRuns(){
     try{
