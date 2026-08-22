@@ -5,22 +5,32 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>EMOG — GitHub</title>
   <style>
-    body{font-family:Arial,helvetica;background:#0f172a;color:#e2e8f0;padding:20px}
-    .card{background:#111827;padding:16px;border-radius:8px;max-width:800px;margin:0 auto}
+     *{box-sizing:border-box}
+     body{font-family:Arial,helvetica;background:#0f172a;color:#e2e8f0;padding:clamp(12px,4vw,20px);margin:0;overflow-x:hidden}
+     .card{background:#111827;padding:clamp(12px,3vw,16px);border-radius:8px;width:min(800px,100%);margin:0 auto}
     input,select{width:100%;padding:8px;margin:6px 0;border-radius:6px;border:1px solid #334155;background:#020817;color:#e2e8f0}
     button{background:#2563eb;color:#fff;padding:10px 14px;border:none;border-radius:6px;cursor:pointer}
     pre{background:#021226;padding:12px;border-radius:6px;overflow:auto}
+     .github-form{margin-top:12px;display:grid;grid-template-columns:minmax(0,1fr) 160px;gap:10px;align-items:start}
+     .github-token,.github-actions{grid-column:1/-1}
+     .github-actions{display:flex;gap:10px;justify-content:flex-end}
+     @media (max-width:560px){
+       .github-form{grid-template-columns:1fr}
+       .github-actions{flex-direction:column}
+       .github-actions button{width:100%;min-height:44px}
+       pre{font-size:12px;max-width:100%}
+     }
   </style>
 </head>
 <body>
   <div class="card panel" style="max-width:820px;margin:0 auto">
      <h2 style="margin:0 0 6px">GitHub</h2>
      <div class="small">Hızlı repo oluşturma ve push aracı (geliştirme amaçlı).</div>
-     <div style="margin-top:12px;display:grid;grid-template-columns:1fr 160px;gap:10px;align-items:start">
+      <div class="github-form">
        <input id="repo_name" placeholder="username/repo-name" />
        <select id="visibility"><option value="private">Private</option><option value="public">Public</option></select>
-       <input id="token" placeholder="(opsiyonel) PAT veya boş bırak" style="grid-column:1/-1" />
-       <div style="grid-column:1/-1;display:flex;gap:10px;justify-content:flex-end">
+        <input class="github-token" id="token" placeholder="(opsiyonel) PAT veya boş bırak" />
+        <div class="github-actions">
          <button id="create" class="primary">Oluştur</button>
          <button id="push" class="primary">Push Et</button>
        </div>

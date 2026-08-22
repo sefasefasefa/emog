@@ -9,25 +9,31 @@
       --bg:#0b1220; --surface:#0f1726; --card:#0f1b2b; --muted:#9fb0c8; --accent:#00c2a8; --accent-2:#6dd3ff;
       --glass: rgba(255,255,255,0.03);
     }
-    *{box-sizing:border-box}
-    body{margin:0;background:linear-gradient(180deg,#071224,#071827);color:#e6f0f6;font-family:Inter,Segoe UI,system-ui,Arial;padding:20px}
-    .wrap{max-width:1200px;margin:0 auto}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+     *{box-sizing:border-box}
+     html{min-width:320px;background:#071224}
+     body{margin:0;background:linear-gradient(180deg,#071224,#071827);color:#e6f0f6;font-family:Inter,Segoe UI,system-ui,Arial;padding:clamp(12px,3vw,20px);overflow-x:hidden}
+     .wrap{width:min(1200px,100%);margin:0 auto}
+     header{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:18px}
     .brand{font-weight:700;font-size:18px;letter-spacing:0.2px}
-     nav a{color:var(--muted);margin-left:12px;text-decoration:none;font-size:14px}
+      .site-nav{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+      nav a{color:var(--muted);text-decoration:none;font-size:14px;white-space:nowrap}
      nav a:hover{color:#e6f0f6}
+      .mobile-menu-toggle{display:none;padding:8px 10px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,.12);color:#dceaf2;cursor:pointer;font-weight:700}
     .panel{background:var(--card);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 6px 20px rgba(3,8,15,0.6)}
      .grid{display:grid;grid-template-columns:1fr;gap:18px}
-    .tabs{display:flex;gap:10px;margin-bottom:14px}
+     .tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
     .tab{padding:8px 14px;border-radius:10px;background:transparent;border:1px solid transparent;color:var(--muted);cursor:pointer;font-weight:600}
     .tab.active{background:linear-gradient(90deg, rgba(0,194,168,0.08), rgba(109,211,255,0.03));color:var(--accent);border:1px solid rgba(0,194,168,0.12)}
-    .chat-window{min-height:360px;max-height:60vh;overflow:auto;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.02)}
+     .chat-window{min-height:clamp(260px,38vh,360px);max-height:60vh;overflow:auto;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.02)}
     .bubble{padding:10px 12px;border-radius:10px;display:inline-block;max-width:78%;margin-bottom:8px}
     .bubble.me{background:linear-gradient(90deg,#062633,#083447);color:#cfeee7;border-radius:12px}
     .bubble.ai{background:linear-gradient(90deg,rgba(0,194,168,0.12),rgba(109,211,255,0.06));color:#eafffb;border-radius:12px}
-    .input-row{display:flex;gap:8px;margin-top:10px}
-    input[type=text], textarea{background:transparent;border:1px solid rgba(255,255,255,0.04);color:#e6f0f6;padding:10px;border-radius:10px;width:100%}
-    button.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#042027;border:none;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:700}
+     .input-row{display:flex;gap:8px;margin-top:10px}
+     input,select,textarea{max-width:100%;font:inherit}
+     input[type=text], textarea{background:transparent;border:1px solid rgba(255,255,255,0.04);color:#e6f0f6;padding:10px;border-radius:10px;width:100%}
+     button{font:inherit}
+     button.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#042027;border:none;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:700}
+     button:disabled{cursor:not-allowed;opacity:.65}
     .small{font-size:13px;color:var(--muted)}
      .status-panel{padding:12px 14px;margin:0 0 10px;background:linear-gradient(100deg,rgba(0,194,168,0.1),rgba(109,211,255,0.05));border:1px solid rgba(109,211,255,0.12);border-radius:10px}
      .status-panel__label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent-2);font-weight:700}
@@ -78,6 +84,27 @@
      .run-item__name{font-weight:700;color:#e6f0f6;word-break:break-word}
      .run-item__preview{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
      .run-item__meta{margin-top:8px;color:var(--accent-2);font-size:11px}
+     @media (max-width:760px){
+       header{align-items:flex-start;position:relative}
+       .brand{font-size:16px;line-height:1.35}
+       .mobile-menu-toggle{display:block;margin-left:auto}
+       .site-nav{display:none;position:absolute;z-index:5;top:calc(100% + 8px);left:0;right:0;padding:12px;background:rgba(15,27,43,.98);border:1px solid rgba(255,255,255,.08);border-radius:10px;box-shadow:0 12px 28px rgba(0,0,0,.35);align-items:stretch;justify-content:flex-start}
+       .site-nav.is-open{display:flex}
+       .site-nav a{padding:9px 4px}
+       .site-nav > span{display:flex;gap:6px;margin-left:0!important;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+       #admin-token-input{width:100%!important;min-width:0}
+     }
+     @media (max-width:560px){
+       .panel{padding:12px;border-radius:10px}
+       .input-row{flex-direction:column}
+       .input-row button{width:100%;min-height:44px}
+       .chat-window{padding:10px;max-height:none}
+       .bubble{max-width:94%}
+       .section-heading{align-items:flex-start;flex-direction:column;gap:5px}
+       .filter-row select{width:100%;min-width:0}
+       .tasks-actions,.runs-actions{width:100%}
+       .tasks-actions a,.runs-actions a{flex:1;text-align:center}
+     }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -85,7 +112,8 @@
   <div class="wrap">
     <header>
       <div class="brand">EMOG • Lokal geliştirme arayüzü</div>
-      <nav>
+      <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menü</button>
+      <nav class="site-nav" id="site-nav">
           <a href="/">Ana Sayfa</a>
           <a href="{% url 'tasks_page' %}">Görevler</a>
           <a href="{% url 'runs_page' %}">Çalıştırmalar</a>
@@ -102,6 +130,24 @@
   </div>
   {% block scripts %}{% endblock %}
   <script>
+    (function(){
+      const toggle = document.getElementById('mobile-menu-toggle');
+      const nav = document.getElementById('site-nav');
+      if(!toggle || !nav) return;
+      toggle.addEventListener('click', function(){
+        const open = nav.classList.toggle('is-open');
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.textContent = open ? 'Kapat' : 'Menü';
+      });
+      nav.querySelectorAll('a').forEach(function(link){
+        link.addEventListener('click', function(){
+          nav.classList.remove('is-open');
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.textContent = 'Menü';
+        });
+      });
+    })();
+
     // Admin token helpers: persist in localStorage and expose getter
     (function(){
       const key = 'emog_admin_token';
