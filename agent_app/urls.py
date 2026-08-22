@@ -3,8 +3,8 @@ from django.urls import path
 from .views import index, runs_page, omni_health, omni_models
 from .views import start_task, assistant_message, task_logs
 from .views import sse_task_stream
-from .views import github_page, create_github_repo, push_repo
-from .views import github_page, create_github_repo, push_repo, save_settings
+from .views import github_page, github_status, github_repositories, create_github_repo, push_repo
+from .views import save_settings
 
 urlpatterns = [
     path('', index, name='home'),
@@ -23,6 +23,8 @@ urlpatterns = [
     path('omni/logs/', __import__('agent_app.views', fromlist=['omni_logs']).omni_logs, name='omni_logs'),
     path('omni/logs/csv/', __import__('agent_app.views', fromlist=['omni_logs_csv']).omni_logs_csv, name='omni_logs_csv'),
     path('github/', github_page, name='github_page'),
+    path('github/status/', github_status, name='github_status'),
+    path('github/repos/', github_repositories, name='github_repositories'),
     path('github/create/', __import__('agent_app.views', fromlist=['create_github_repo']).create_github_repo, name='create_github_repo'),
     path('github/push/', __import__('agent_app.views', fromlist=['push_repo']).push_repo, name='push_repo'),
     path('settings/save/', __import__('agent_app.views', fromlist=['save_settings']).save_settings, name='save_settings'),

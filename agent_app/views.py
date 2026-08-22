@@ -1014,27 +1014,105 @@ def omni_logs_csv(request):
 
 
 def github_page(request):
-    """Render a small UI for creating a GitHub repo and pushing the project."""
+    """Render the connected GitHub workspace."""
     return render(request, "agent_app/github.html", {})
+
+
+def _github_proxy(path, method="GET", body=None):
+    """Call GitHub through the Replit-managed connection without exposing tokens."""
+    helper = os.path.join(settings.BASE_DIR, "github_connector.mjs")
+    payload = {"path": path, "method": method}
+    if body is not None:
+        payload["body"] = body
+    try:
+        proc = subprocess.run(
+            ["node", helper],
+            cwd=settings.BASE_DIR,
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "status": 504, "body": {"message": "GitHub isteği zaman aşımına uğradı."}}
+    except OSError as exc:
+        return {"ok": False, "status": 503, "body": {"message": f"GitHub istemcisi başlatılamadı: {exc}"}}
+
+    if proc.returncode != 0:
+        return {"ok": False, "status": 502, "body": {"message": "GitHub bağlantısı kullanılamadı."}}
+    try:
+        result = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return {"ok": False, "status": 502, "body": {"message": "GitHub geçersiz yanıt döndürdü."}}
+    return result
+
+
+def _github_error(result):
+    body = result.get("body") or {}
+    if isinstance(body, dict):
+        message = body.get("message")
+    else:
+        message = None
+    return message or "GitHub isteği başarısız oldu."
+
+
+def github_status(request):
+    if request.method != "GET":
+        return JsonResponse({"ok": False, "error": "GET required"}, status=405)
+    result = _github_proxy("/user")
+    if not result.get("ok"):
+        return JsonResponse({"ok": False, "connected": False, "error": _github_error(result)}, status=502)
+    user = result.get("body") or {}
+    return JsonResponse({
+        "ok": True,
+        "connected": True,
+        "user": {
+            "login": user.get("login"),
+            "name": user.get("name"),
+            "avatar_url": user.get("avatar_url"),
+            "html_url": user.get("html_url"),
+        },
+    })
+
+
+def github_repositories(request):
+    if request.method != "GET":
+        return JsonResponse({"ok": False, "error": "GET required"}, status=405)
+    page = request.GET.get("page", "1")
+    result = _github_proxy(f"/user/repos?sort=pushed&per_page=50&page={urllib.parse.quote(page)}")
+    if not result.get("ok"):
+        return JsonResponse({"ok": False, "error": _github_error(result)}, status=502)
+    repositories = []
+    for repo in result.get("body") or []:
+        repositories.append({
+            "id": repo.get("id"),
+            "full_name": repo.get("full_name"),
+            "name": repo.get("name"),
+            "private": repo.get("private"),
+            "default_branch": repo.get("default_branch"),
+            "html_url": repo.get("html_url"),
+            "description": repo.get("description"),
+            "updated_at": repo.get("updated_at"),
+            "pushed_at": repo.get("pushed_at"),
+        })
+    return JsonResponse({"ok": True, "repositories": repositories})
 
 
 @csrf_exempt
 def create_github_repo(request):
-    """Create a GitHub repo using either the provided token or the `gh` CLI if available.
-
-    POST fields: `repo_name`, `visibility` ('public'|'private'), optional `token`.
-    Returns JSON {ok: True, url: 'https://github.com/...'} on success.
-    """
+    """Create a repository through the connected GitHub account."""
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "POST required"}, status=405)
 
     repo_name = (request.POST.get("repo_name") or "").strip()
     visibility = (request.POST.get("visibility") or "private").strip()
-    token = (request.POST.get("token") or "").strip()
     if not repo_name:
         return JsonResponse({"ok": False, "error": "repo_name required"}, status=400)
+    if "/" in repo_name:
+        return JsonResponse({"ok": False, "error": "Sadece depo adı girin; kullanıcı adı bağlantıdan alınır."}, status=400)
+    if visibility not in {"public", "private"}:
+        return JsonResponse({"ok": False, "error": "visibility public veya private olmalı."}, status=400)
 
-    # admin token check
     def _check_admin_token(req):
         token = (req.POST.get('admin_token') or req.META.get('HTTP_X_ADMIN_TOKEN') or '').strip()
         expected = os.environ.get('ADMIN_API_TOKEN') or getattr(settings, 'ADMIN_API_TOKEN', None)
@@ -1043,54 +1121,20 @@ def create_github_repo(request):
     if not _check_admin_token(request):
         return JsonResponse({"ok": False, "error": "Forbidden - missing admin token"}, status=403)
 
-    # prefer gh CLI if available
-    gh_path = shutil.which("gh")
-    if gh_path:
-        try:
-            # run: gh repo create <repo_name> --public/--private --confirm
-            args = [gh_path, "repo", "create", repo_name]
-            if visibility == "public":
-                args.append("--public")
-            else:
-                args.append("--private")
-            args.append("--confirm")
-            proc = subprocess.run(args, capture_output=True, text=True)
-            if proc.returncode == 0:
-                # try to construct URL
-                user = None
-                # `gh repo view --json url` could be used but keep simple
-                url = f"https://github.com/{repo_name}"
-                return JsonResponse({"ok": True, "url": url})
-            else:
-                return JsonResponse({"ok": False, "error": proc.stderr or proc.stdout}, status=500)
-        except Exception as e:
-            return JsonResponse({"ok": False, "error": str(e)}, status=500)
-
-    # fallback: use GitHub REST API with provided token
-    if not token:
-        return JsonResponse({"ok": False, "error": "No gh CLI and no token provided"}, status=400)
-
-    payload = {"name": repo_name, "private": (visibility != "public")}
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request("https://api.github.com/user/repos", data=data, method="POST")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("User-Agent", "emog-app")
-    req.add_header("Authorization", f"token {token}")
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            body = resp.read(65536).decode(errors="replace")
-            parsed = json.loads(body)
-            return JsonResponse({"ok": True, "url": parsed.get("html_url")})
-    except urllib.error.HTTPError as e:
-        try:
-            err = e.read().decode(errors="replace")
-            parsed = json.loads(err)
-            message = parsed.get("message") or err
-        except Exception:
-            message = str(e)
-        return JsonResponse({"ok": False, "error": message}, status=500)
-    except Exception as e:
-        return JsonResponse({"ok": False, "error": str(e)}, status=500)
+    result = _github_proxy("/user/repos", method="POST", body={
+        "name": repo_name,
+        "private": visibility == "private",
+        "auto_init": False,
+    })
+    if not result.get("ok"):
+        return JsonResponse({"ok": False, "error": _github_error(result)}, status=502)
+    repo = result.get("body") or {}
+    return JsonResponse({"ok": True, "repository": {
+        "full_name": repo.get("full_name"),
+        "html_url": repo.get("html_url"),
+        "default_branch": repo.get("default_branch"),
+        "private": repo.get("private"),
+    }})
 
 
 @csrf_exempt
