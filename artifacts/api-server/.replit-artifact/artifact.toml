@@ -15,7 +15,7 @@ run = "cd ../.. && python manage.py runserver 0.0.0.0:5000"
 [services.production]
 
 [services.production.run]
-args = ["python", "manage.py", "runserver", "0.0.0.0:5000"]
+args = ["sh", "-c", "cd ../.. && python manage.py runserver 0.0.0.0:5000"]
 
 [services.production.health.startup]
 path = "/"
