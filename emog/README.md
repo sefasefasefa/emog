@@ -40,7 +40,7 @@ OMNIROUTE_DEFAULT_MODEL=auto/best-chat
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 & .\.venv\Scripts\Activate.ps1
-python manage.py runserver 127.0.0.1:8002
+python manage.py runserver 0.0.0.0:8002
 ```
 
 5) Tarayıcıda açın: http://127.0.0.1:8002/
