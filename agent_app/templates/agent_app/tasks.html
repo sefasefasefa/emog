@@ -1,0 +1,99 @@
+{% extends 'agent_app/base.html' %}
+
+{% block head %}
+<style>
+  .tasks-header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  .tasks-header h1{margin:0 0 6px;font-size:26px}
+  .tasks-header p{margin:0;color:var(--muted);font-size:13px}
+  .tasks-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .tasks-actions a{color:var(--muted);text-decoration:none;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:8px;font-size:12px}
+  .tasks-actions a:hover{color:#e6f0f6;border-color:rgba(109,211,255,.3)}
+  .tasks-card{padding:18px}
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="tasks-header">
+    <div>
+      <h1>Tüm görevler</h1>
+      <p>Görevleri durumlarına ve önem derecelerine göre inceleyin.</p>
+    </div>
+    <div class="tasks-actions">
+      <a href="{% url 'home' %}">Ana sayfaya dön</a>
+      <a href="{% url 'tasks_page' %}">Yenile</a>
+    </div>
+  </div>
+  <div class="panel tasks-card">
+    <div class="section-heading">
+      <h4>Görev listesi</h4>
+      <span id="task-count" class="count-label">Yükleniyor...</span>
+    </div>
+    <div class="filter-row">
+      <select id="status-filter" aria-label="Duruma göre filtrele">
+        <option value="all">Tüm durumlar</option>
+        <option value="queued">Bekliyor</option>
+        <option value="running">Çalışıyor</option>
+        <option value="completed">Tamamlandı</option>
+        <option value="failed">Başarısız</option>
+      </select>
+      <select id="priority-filter" aria-label="Önem derecesine göre filtrele">
+        <option value="all">Tüm önem dereceleri</option>
+        <option value="urgent">Acil</option>
+        <option value="high">Yüksek</option>
+        <option value="medium">Orta</option>
+        <option value="low">Düşük</option>
+      </select>
+    </div>
+    <div id="tasks-content" class="empty-state">Görevler yükleniyor...</div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const statusLabels = {queued:'Bekliyor', running:'Çalışıyor', completed:'Tamamlandı', failed:'Başarısız'};
+  const priorityLabels = {urgent:'Acil', high:'Yüksek', medium:'Orta', low:'Düşük'};
+  let allTasks = [];
+  function escapeHtml(value){
+    return String(value ?? '').replace(/[&<>"']/g, function(ch){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch];
+    });
+  }
+  function badge(value, labels){
+    const key = String(value || 'medium').toLowerCase();
+    return '<span class="badge badge--'+escapeHtml(key)+'">'+escapeHtml(labels[key] || value || '-')+'</span>';
+  }
+  function renderTasks(){
+    const status = document.getElementById('status-filter').value;
+    const priority = document.getElementById('priority-filter').value;
+    const filtered = allTasks.filter(function(task){
+      return (status === 'all' || task.status === status) && (priority === 'all' || task.priority === priority);
+    });
+    document.getElementById('task-count').textContent = filtered.length+' görev';
+    const target = document.getElementById('tasks-content');
+    if(!filtered.length){ target.className = 'empty-state'; target.textContent = allTasks.length ? 'Bu filtrelerle eşleşen görev yok.' : 'Henüz görev yok.'; return; }
+    target.className = '';
+    target.innerHTML = '<table class="tasks-table"><thead><tr><th>#</th><th>Görev</th><th>Durum</th><th>Önem</th><th>Oluşturulma</th></tr></thead><tbody>'+filtered.map(function(task, index){
+      const date = task.enqueued_at ? new Date(task.enqueued_at).toLocaleString('tr-TR', {dateStyle:'medium', timeStyle:'short'}) : '-';
+      return '<tr><td>'+(index+1)+'</td><td class="tasks-table__title">'+escapeHtml(task.title || task.task || 'Başlıksız görev')+'</td><td>'+badge(task.status, statusLabels)+'</td><td>'+badge(task.priority, priorityLabels)+'</td><td class="small">'+escapeHtml(date)+'</td></tr>';
+    }).join('')+'</tbody></table>';
+  }
+  async function loadTasks(){
+    try{
+      const response = await fetch('{% url "tasks_list" %}');
+      const data = await response.json();
+      if(!data.ok) throw new Error('tasks unavailable');
+      allTasks = data.tasks || [];
+      renderTasks();
+    }catch(error){
+      document.getElementById('task-count').textContent = '—';
+      const target = document.getElementById('tasks-content');
+      target.className = 'empty-state';
+      target.textContent = 'Görevler yüklenemedi.';
+    }
+  }
+  document.getElementById('status-filter').addEventListener('change', renderTasks);
+  document.getElementById('priority-filter').addEventListener('change', renderTasks);
+  loadTasks();
+  setInterval(loadTasks, 2500);
+</script>
+{% endblock %}

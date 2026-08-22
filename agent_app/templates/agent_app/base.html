@@ -14,7 +14,8 @@
     .wrap{max-width:1200px;margin:0 auto}
     header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
     .brand{font-weight:700;font-size:18px;letter-spacing:0.2px}
-    nav a{color:var(--muted);margin-left:12px;text-decoration:none;font-size:14px}
+     nav a{color:var(--muted);margin-left:12px;text-decoration:none;font-size:14px}
+     nav a:hover{color:#e6f0f6}
     .panel{background:var(--card);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 6px 20px rgba(3,8,15,0.6)}
     .grid{display:grid;grid-template-columns:1.8fr 1fr;gap:18px}
     .tabs{display:flex;gap:10px;margin-bottom:14px}
@@ -28,6 +29,37 @@
     input[type=text], textarea{background:transparent;border:1px solid rgba(255,255,255,0.04);color:#e6f0f6;padding:10px;border-radius:10px;width:100%}
     button.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#042027;border:none;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:700}
     .small{font-size:13px;color:var(--muted)}
+     .status-panel{padding:12px 14px;margin:0 0 10px;background:linear-gradient(100deg,rgba(0,194,168,0.1),rgba(109,211,255,0.05));border:1px solid rgba(109,211,255,0.12);border-radius:10px}
+     .status-panel__label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent-2);font-weight:700}
+     .status-panel__value{margin-top:5px;color:#eafffb;font-weight:600;min-height:20px}
+     .section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+     .section-heading h4{margin:0}
+     .link-button{display:inline-flex;align-items:center;justify-content:center;padding:7px 10px;border-radius:8px;border:1px solid rgba(109,211,255,.2);background:rgba(109,211,255,.06);color:var(--accent-2);text-decoration:none;font-size:12px;font-weight:700}
+     .link-button:hover{background:rgba(109,211,255,.12)}
+     .task-list{margin-top:10px;display:flex;flex-direction:column;gap:7px}
+     .task-item{display:flex;align-items:flex-start;gap:10px;padding:10px 11px;border:1px solid rgba(255,255,255,.05);border-radius:9px;background:rgba(255,255,255,.018)}
+     .task-item__number{width:23px;height:23px;display:grid;place-items:center;border-radius:7px;background:rgba(0,194,168,.13);color:var(--accent);font-size:12px;font-weight:800;flex:none}
+     .task-item__body{min-width:0;flex:1}
+     .task-item__title{color:#e6f0f6;font-size:13px;line-height:1.35;word-break:break-word}
+     .task-item__meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;color:var(--muted);font-size:11px}
+     .badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.01em}
+     .badge--queued{background:rgba(109,211,255,.12);color:#9cddff}
+     .badge--running{background:rgba(255,194,92,.13);color:#ffd18a}
+     .badge--completed{background:rgba(0,194,168,.14);color:#63e2cd}
+     .badge--failed{background:rgba(255,102,129,.13);color:#ff9bad}
+     .badge--urgent,.badge--high{background:rgba(255,151,87,.14);color:#ffba8a}
+     .badge--medium{background:rgba(159,176,200,.13);color:#c5d0dd}
+     .badge--low{background:rgba(109,211,255,.1);color:#a4dcf7}
+     .empty-state{padding:16px 10px;text-align:center;color:var(--muted);font-size:13px;border:1px dashed rgba(255,255,255,.09);border-radius:9px}
+     .filter-row{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+     .filter-row select{background:#101d2d;color:#e6f0f6;border:1px solid rgba(255,255,255,.1);padding:9px 10px;border-radius:8px;min-width:150px}
+     .tasks-table{width:100%;border-collapse:collapse}
+     .tasks-table th,.tasks-table td{text-align:left;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top}
+     .tasks-table th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+     .tasks-table td{font-size:13px}
+     .tasks-table__title{max-width:530px;word-break:break-word}
+     .count-label{color:var(--muted);font-size:13px}
+     @media (max-width:700px){.tasks-table{display:block;overflow-x:auto;white-space:nowrap}.tasks-table__title{white-space:normal;min-width:220px}}
     aside .panel{position:sticky;top:20px}
     @media (max-width:900px){.grid{grid-template-columns:1fr}.aside{order:2}}
   </style>
@@ -39,6 +71,7 @@
       <div class="brand">EMOG • Lokal geliştirme arayüzü</div>
       <nav>
           <a href="/">Ana Sayfa</a>
+          <a href="{% url 'tasks_page' %}">Görevler</a>
           <a href="/github/">Entegrasyonlar</a>
           <a href="{% url 'omni_logs' %}">Omni Logs</a>
           <span style="margin-left:14px">

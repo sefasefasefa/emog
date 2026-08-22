@@ -15,6 +15,11 @@
             <textarea id="chat-input" rows="2" placeholder="Ne yapmak istediğinizi yazın... Örn: “1-100 arasındaki asal sayıları bul ve çalıştır” veya “Django nedir?”"></textarea>
             <button class="primary" id="chat-send">Gönder</button>
           </div>
+          <div class="status-panel" aria-live="polite">
+            <div class="status-panel__label">Durum</div>
+            <div id="run-status" class="status-panel__value">Durum: boş</div>
+            <div id="omni-result" class="small">Henüz kontrol edilmedi.</div>
+          </div>
           <div id="live-logs-wrapper" style="display:none;margin-top:12px">
             <div class="chat-window" id="live-logs"></div>
           </div>
@@ -34,14 +39,10 @@
 
     <aside class="aside">
       <div class="panel">
-        <h4 style="margin-top:0">Durum</h4>
-        <div id="omni-result" class="small">Henüz kontrol edilmedi.</div>
-        <div id="run-status" class="small" style="margin-top:8px;color:#9aa4b2">Durum: boş</div>
-        <hr />
-        <h4 style="margin:8px 0">Kuyruk (Bekleyen Görevler)</h4>
+        <h4 style="margin-top:0">Kuyruk</h4>
         <div id="task-queue" style="max-height:120px;overflow:auto;font-size:13px;color:#9aa4b2;margin-bottom:8px">Yükleniyor...</div>
         <div style="margin-top:6px"><button id="enqueue-1" class="primary" style="width:100%">1'i sıraya ekle</button></div>
-        <h4 style="margin:8px 0">Geçmiş</h4>
+        <h4 style="margin:16px 0 8px">Son çalıştırmalar</h4>
         <div id="runs-list" style="max-height:340px;overflow:auto;font-size:13px"></div>
       </div>
     </aside>
@@ -138,7 +139,7 @@
       try{ j = await safeJson(resp); }catch(e){ renderBubble('Sunucu hata: '+e.message,'ai'); return; }
       if(j && j.ok){
         if(j.reply) renderBubble(j.reply, 'ai');
-        if(j.intent === 'execute' && j.run_id) startRunStream(j.run_id, {showLogs:true});
+        if(j.intent === 'execute' && j.run_id) { startRunStream(j.run_id, {showLogs:true}); refreshTasks(); }
         if(j.intent === 'health' || j.intent === 'models') renderBubble(JSON.stringify(j.data || j, null, 2), 'ai');
       } else {
         renderBubble((j && (j.error || j.detail)) || 'İstek işlenemedi.', 'ai');
@@ -196,6 +197,41 @@
   setInterval(pollQueue, 2500);
   pollQueue();
 
+  function escapeHtml(value){
+    return String(value ?? '').replace(/[&<>"']/g, function(ch){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch];
+    });
+  }
+
+  const statusLabels = {queued:'Bekliyor', running:'Çalışıyor', completed:'Tamamlandı', failed:'Başarısız'};
+  const priorityLabels = {urgent:'Acil', high:'Yüksek', medium:'Orta', low:'Düşük'};
+  function taskBadge(value, labels){
+    const key = String(value || 'medium').toLowerCase();
+    return '<span class="badge badge--'+escapeHtml(key)+'">'+escapeHtml(labels[key] || value || '-')+'</span>';
+  }
+  function renderTaskList(tasks){
+    const list = document.getElementById('task-list');
+    if(!list) return;
+    if(!tasks.length){ list.innerHTML = '<div class="empty-state">Henüz görev yok. Bir görev yazarak başlayın.</div>'; return; }
+    list.innerHTML = tasks.slice(0, 12).map(function(task, index){
+      const title = task.title || task.task || 'Başlıksız görev';
+      const date = task.enqueued_at ? new Date(task.enqueued_at).toLocaleString('tr-TR', {dateStyle:'short', timeStyle:'short'}) : '';
+      return '<div class="task-item"><div class="task-item__number">'+(index+1)+'</div><div class="task-item__body"><div class="task-item__title">'+escapeHtml(title)+'</div><div class="task-item__meta">'+taskBadge(task.status, statusLabels)+taskBadge(task.priority, priorityLabels)+'<span>'+escapeHtml(date)+'</span></div></div></div>';
+    }).join('');
+  }
+  async function refreshTasks(){
+    try{
+      const resp = await fetch('{% url "tasks_list" %}');
+      const data = await safeJson(resp);
+      if(data.ok) renderTaskList(data.tasks || []);
+    }catch(e){
+      const list = document.getElementById('task-list');
+      if(list) list.innerHTML = '<div class="empty-state">Görevler yüklenemedi.</div>';
+    }
+  }
+  refreshTasks();
+  setInterval(refreshTasks, 2500);
+
   // quick enqueue button for "1"
   (function(){
     const btn = document.getElementById('enqueue-1'); if(!btn) return;
@@ -205,7 +241,7 @@
         const body = new URLSearchParams(); body.append('task', 'print(1)'); body.append('model', 'auto');
         const resp = await fetch('{% url "run_task" %}', {method:'POST', body: body, headers: buildHeaders()});
         let j; try{ j = await safeJson(resp); }catch(e){ alert('Sunucu hata: '+e.message); btn.disabled=false; btn.textContent = "1'i sıraya ekle"; return; }
-        if(j && j.ok){ alert('Eklendi: run_id=' + j.run_id + ' (pozisyon: ' + (j.position||'?') + ')'); pollQueue(); } else { alert('Başarısız: '+JSON.stringify(j)); }
+        if(j && j.ok){ alert('Eklendi: run_id=' + j.run_id + ' (pozisyon: ' + (j.position||'?') + ')'); pollQueue(); refreshTasks(); } else { alert('Başarısız: '+JSON.stringify(j)); }
       }catch(e){ alert('Hata: '+String(e)); }
       btn.disabled=false; btn.textContent = "1'i sıraya ekle";
     });
