@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>EMOG — GitHub</title>
+  <style>
+    body{font-family:Arial,helvetica;background:#0f172a;color:#e2e8f0;padding:20px}
+    .card{background:#111827;padding:16px;border-radius:8px;max-width:800px;margin:0 auto}
+    input,select{width:100%;padding:8px;margin:6px 0;border-radius:6px;border:1px solid #334155;background:#020817;color:#e2e8f0}
+    button{background:#2563eb;color:#fff;padding:10px 14px;border:none;border-radius:6px;cursor:pointer}
+    pre{background:#021226;padding:12px;border-radius:6px;overflow:auto}
+  </style>
+</head>
+<body>
+  <div class="card panel" style="max-width:820px;margin:0 auto">
+     <h2 style="margin:0 0 6px">GitHub</h2>
+     <div class="small">Hızlı repo oluşturma ve push aracı (geliştirme amaçlı).</div>
+     <div style="margin-top:12px;display:grid;grid-template-columns:1fr 160px;gap:10px;align-items:start">
+       <input id="repo_name" placeholder="username/repo-name" />
+       <select id="visibility"><option value="private">Private</option><option value="public">Public</option></select>
+       <input id="token" placeholder="(opsiyonel) PAT veya boş bırak" style="grid-column:1/-1" />
+       <div style="grid-column:1/-1;display:flex;gap:10px;justify-content:flex-end">
+         <button id="create" class="primary">Oluştur</button>
+         <button id="push" class="primary">Push Et</button>
+       </div>
+     </div>
+     <div style="margin-top:14px">
+       <h4 style="margin:0 0 6px">Çıktı</h4>
+       <pre id="out" style="background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;min-height:80px">Henüz işlem yapılmadı.</pre>
+     </div>
+  </div>
+
+  <script>
+    function setOut(o){ document.getElementById('out').textContent = typeof o === 'string' ? o : JSON.stringify(o,null,2); }
+    function adminHeaders(){ let t = '';
+      try{ if(window.getAdminToken) t = window.getAdminToken(); else t = localStorage.getItem('emog_admin_token') || ''; }catch(e){ t = ''; }
+      return t ? {'X-ADMIN-TOKEN': t} : {};
+    }
+    function getCookie(name){ const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'); return v ? v.pop() : ''; }
+    function buildHeaders(extra){ const headers = Object.assign({}, extra || {}); try{ const admin = (window.getAdminToken && window.getAdminToken()) || localStorage.getItem('emog_admin_token') || ''; if(admin) headers['X-ADMIN-TOKEN'] = admin; }catch(e){} const csr = getCookie('csrftoken') || getCookie('csrfmiddlewaretoken'); if(csr) headers['X-CSRFToken'] = csr; return headers; }
+    async function safeJson(resp){ const ct = resp.headers.get('content-type')||''; if(ct.includes('application/json')) return await resp.json(); const txt = await resp.text(); throw new Error('Non-JSON response:\n'+txt.slice(0,1200)); }
+    document.getElementById('create').addEventListener('click', async ()=>{
+      const repo = document.getElementById('repo_name').value.trim();
+      const vis = document.getElementById('visibility').value;
+      const token = document.getElementById('token').value.trim();
+      if(!repo){ alert('Repo adı gerekli'); return; }
+      setOut({status:'creating'})
+        const body = new URLSearchParams(); body.append('repo_name', repo); body.append('visibility', vis); if(token) body.append('token', token);
+          try{
+          const hdrs = adminHeaders();
+          const resp = await fetch('{% url "create_github_repo" %}', {method:'POST', body: body, headers: buildHeaders(hdrs)});
+          let j; try{ j = await safeJson(resp); }catch(e){ setOut({error: e.message}); return; } setOut(j);
+        }catch(e){ setOut({error: String(e)}) }
+    });
+
+    document.getElementById('push').addEventListener('click', async ()=>{
+      const remote = document.getElementById('remote_url').value.trim();
+      const token = document.getElementById('token').value.trim();
+      if(!remote) { alert('Remote URL gerekli'); return; }
+      setOut({status:'pushing'});
+      const body = new URLSearchParams(); body.append('remote_url', remote); if(token) body.append('token', token);
+      try{ const hdrs = adminHeaders(); const resp = await fetch('{% url "push_repo" %}', {method:'POST', body: body, headers: buildHeaders(hdrs)}); let j; try{ j = await safeJson(resp); }catch(e){ setOut({error: e.message}); return; } setOut(j); } catch(e){ setOut({error: String(e)}) }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>EMOG — Lokal</title>
+  <style>
+    :root{
+      --bg:#0b1220; --surface:#0f1726; --card:#0f1b2b; --muted:#9fb0c8; --accent:#00c2a8; --accent-2:#6dd3ff;
+      --glass: rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#071224,#071827);color:#e6f0f6;font-family:Inter,Segoe UI,system-ui,Arial;padding:20px}
+    .wrap{max-width:1200px;margin:0 auto}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .brand{font-weight:700;font-size:18px;letter-spacing:0.2px}
+    nav a{color:var(--muted);margin-left:12px;text-decoration:none;font-size:14px}
+    .panel{background:var(--card);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 6px 20px rgba(3,8,15,0.6)}
+    .grid{display:grid;grid-template-columns:1.8fr 1fr;gap:18px}
+    .tabs{display:flex;gap:10px;margin-bottom:14px}
+    .tab{padding:8px 14px;border-radius:10px;background:transparent;border:1px solid transparent;color:var(--muted);cursor:pointer;font-weight:600}
+    .tab.active{background:linear-gradient(90deg, rgba(0,194,168,0.08), rgba(109,211,255,0.03));color:var(--accent);border:1px solid rgba(0,194,168,0.12)}
+    .chat-window{min-height:360px;max-height:60vh;overflow:auto;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.02)}
+    .bubble{padding:10px 12px;border-radius:10px;display:inline-block;max-width:78%;margin-bottom:8px}
+    .bubble.me{background:linear-gradient(90deg,#062633,#083447);color:#cfeee7;border-radius:12px}
+    .bubble.ai{background:linear-gradient(90deg,rgba(0,194,168,0.12),rgba(109,211,255,0.06));color:#eafffb;border-radius:12px}
+    .input-row{display:flex;gap:8px;margin-top:10px}
+    input[type=text], textarea{background:transparent;border:1px solid rgba(255,255,255,0.04);color:#e6f0f6;padding:10px;border-radius:10px;width:100%}
+    button.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#042027;border:none;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:700}
+    .small{font-size:13px;color:var(--muted)}
+    aside .panel{position:sticky;top:20px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}.aside{order:2}}
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">EMOG • Lokal geliştirme arayüzü</div>
+      <nav>
+          <a href="/">Ana Sayfa</a>
+          <a href="/github/">Entegrasyonlar</a>
+          <a href="{% url 'omni_logs' %}">Omni Logs</a>
+          <span style="margin-left:14px">
+            <input id="admin-token-input" placeholder="Admin token" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);width:180px;background:transparent;color:var(--muted);font-size:13px" />
+            <button id="admin-token-save" style="margin-left:6px;padding:6px 8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);cursor:pointer">Kaydet</button>
+          </span>
+        </nav>
+    </header>
+
+    {% block content %}{% endblock %}
+  </div>
+  {% block scripts %}{% endblock %}
+  <script>
+    // Admin token helpers: persist in localStorage and expose getter
+    (function(){
+      const key = 'emog_admin_token';
+      const input = document.getElementById('admin-token-input');
+      const btn = document.getElementById('admin-token-save');
+      function load(){ try{ const v = localStorage.getItem(key) || ''; if(input) input.value = v; }catch(e){} }
+      function save(){ try{ const v = (input && input.value) ? input.value.trim() : ''; localStorage.setItem(key, v); if(v){ btn.textContent = 'Kaydedildi'; setTimeout(()=>btn.textContent='Kaydet',1200);} }catch(e){} }
+      window.getAdminToken = function(){ try{ return localStorage.getItem(key) || ''; }catch(e){ return ''; } }
+      if(btn){ btn.addEventListener('click', save); }
+      load();
+    })();
+  </script>
+</body>
+</html>
